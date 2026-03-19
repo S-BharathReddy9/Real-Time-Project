@@ -1,0 +1,27 @@
+.notif {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent-cyan);
+  box-shadow: var(--shadow-card);
+  font-size: 14px;
+  min-width: 260px;
+  max-width: 380px;
+  transition: all 0.3s ease;
+}
+.notif-success { border-color: #00e57a; }
+.notif-error   { border-color: var(--live-red); }
+.notif-in  { opacity: 1; transform: translateX(0); }
+.notif-out { opacity: 0; transform: translateX(20px); }
+.notif-icon { font-size: 15px; font-weight: 700; }
+.notif-msg  { flex: 1; color: var(--text-primary); }
+.notif-close {
+  background: none; border: none;
+  color: var(--text-muted); font-size: 18px;
+  line-height: 1; padding: 0 2px;
+  transition: color 0.2s;
+}
+.notif-close:hover { color: var(--text-primary); }

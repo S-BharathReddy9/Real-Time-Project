@@ -1,0 +1,20 @@
+.notfound-page {
+  min-height: 100vh; display: flex; align-items: center;
+  justify-content: center; text-align: center;
+  position: relative; overflow: hidden; padding: 24px;
+}
+.notfound-bg { position: fixed; inset: 0; pointer-events: none; }
+.notfound-orb {
+  position: absolute; width: 500px; height: 500px; border-radius: 50%;
+  background: #00e5ff; filter: blur(120px); opacity: 0.06;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+}
+.notfound-content { position: relative; z-index: 1; }
+.notfound-code {
+  font-size: clamp(80px,15vw,140px); font-weight: 800;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255,255,255,0.08);
+  line-height: 1; margin-bottom: 8px;
+}
+.notfound-title { font-size: 28px; font-weight: 800; color: #f0f4ff; }
+.notfound-desc  { font-size: 15px; color: #8896b0; margin-top: 10px; }

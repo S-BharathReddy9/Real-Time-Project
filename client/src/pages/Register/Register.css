@@ -1,0 +1,16 @@
+.field-input--error { border-color: rgba(255,45,85,0.5) !important; }
+.field-error { font-size: 12px; color: #ff6b8a; margin-top: 2px; }
+
+.strength-bar {
+  display: flex; align-items: center; gap: 5px; margin-top: 6px;
+}
+.strength-seg {
+  flex: 1; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  transition: background 0.3s;
+}
+.strength-1 { background: #ff2d55; }
+.strength-2 { background: #ffb800; }
+.strength-3 { background: #00e5ff; }
+.strength-4 { background: #00c896; }
+.strength-label { font-size: 11px; color: #8896b0; min-width: 42px; }
