@@ -33,17 +33,31 @@ const seedMovie = async () => {
       user = await User.create({ username: 'Admin', email: 'admin@streamsphere.com' });
     }
 
-    // Create the Video object
-    const newMovie = await Video.create({
-      title: "My Amazing First Movie",
-      description: "This is a movie I added from my seed script!",
-      thumbnailUrl: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1025",
-      videoUrl: "C:\Home\WhatsApp Video 2026-03-21 at 19.07.50.mp4", // Replace with your videoURL
-      uploadedBy: user._id
-    });
+    // Define the list of movies you want to add
+    // Notice the use of String.raw`` for Windows C:\ paths to prevent escape character errors!
+    const moviesToInject = [
+      {
+        title: "My Amazing First Movie",
+        description: "This is a movie I added from my seed script!",
+        thumbnailUrl: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1025",
+        videoUrl: String.raw`C:\Home\WhatsApp Video 2026-03-21 at 19.07.50.mp4`,
+        uploadedBy: user._id
+      },
+      {
+        title: "Awesome Second Movie",
+        description: "Another movie added straight into the database.",
+        thumbnailUrl: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000",
+        videoUrl: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        uploadedBy: user._id
+      }
+      // You can copy and paste fully new blocks here to add dozens of movies at once!
+    ];
 
-    console.log('🎉 Success! Your movie was added to the database:');
-    console.log(newMovie);
+    // Insert all movies into the database simultaneously
+    const newMovies = await Video.insertMany(moviesToInject);
+
+    console.log(`🎉 Success! Added ${newMovies.length} movies to the database:`);
+    newMovies.forEach(m => console.log(` - ${m.title}`));
 
     process.exit(0);
   } catch (error) {

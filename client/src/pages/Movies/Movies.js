@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import './Movies.css';
 
 const Movies = () => {
@@ -11,24 +11,8 @@ const Movies = () => {
   useEffect(() => {
     const fetchMovies = async () => {
       try {
-        // Will fetch from backend, mocking for now
-        // const response = await axios.get('/api/videos');
-        // setMovies(response.data.videos);
-        
-        setMovies([
-            {
-                _id: '1',
-                title: 'Sample Movie for Testing',
-                description: 'This is a wonderful test movie.',
-                thumbnailUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1025&ixlib=rb-4.0.3',
-            },
-            {
-                _id: '2',
-                title: 'Another Awesome Movie',
-                description: 'Action packed adventure for everyone.',
-                thumbnailUrl: 'https://images.unsplash.com/photo-1574267432553-4b4628081524?auto=format&fit=crop&q=80&w=1170&ixlib=rb-4.0.3',
-            }
-        ]);
+        const response = await api.get('/videos');
+        setMovies(response.data.videos);
         setLoading(false);
       } catch (err) {
         setError('Failed to fetch movies.');

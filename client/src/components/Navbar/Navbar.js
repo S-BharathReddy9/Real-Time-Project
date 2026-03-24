@@ -30,6 +30,33 @@ export default function Navbar() {
           )}
         </div>
 
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            const id = e.target.elements.streamId.value.trim();
+            if (id) navigate(`/stream/${id}`);
+            e.target.reset();
+          }}
+          style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '20px' }}
+        >
+          <input 
+            name="streamId" 
+            placeholder="Paste Stream ID..." 
+            style={{ 
+              width: '180px', padding: '6px 12px', fontSize: '13px', 
+              borderRadius: '6px 0 0 6px', border: '1px solid #333', 
+              background: '#1a1a1a', color: '#fff', outline: 'none'
+            }}
+          />
+          <button 
+            type="submit" 
+            className="btn btn-primary" 
+            style={{ padding: '7px 16px', fontSize: '13px', borderRadius: '0 6px 6px 0', border: 'none', cursor: 'pointer' }}
+          >
+            Join
+          </button>
+        </form>
+
         <div className="navbar-right">
           {user ? (
             <div className="user-menu-wrap">

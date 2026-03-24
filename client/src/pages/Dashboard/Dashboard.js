@@ -113,6 +113,16 @@ export default function Dashboard() {
                           <span className="my-stream-viewers">{formatViewerCount(stream.viewerCount)} viewers</span>
                         )}
                         <span className="my-stream-time">{timeAgo(stream.createdAt)}</span>
+                        <span 
+                          onClick={() => {
+                            navigator.clipboard.writeText(stream._id);
+                            alert(`Stream ID ${stream._id} copied to clipboard!`);
+                          }} 
+                          style={{ cursor: 'pointer', background: '#333', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', marginLeft: '10px', border: '1px solid #444', color: '#ff2a5f' }} 
+                          title="Click to copy Stream ID"
+                        >
+                          ID: {stream._id} 📋
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player';
-import axios from 'axios';
+import api from '../../services/api';
 import './MoviePlayer.css';
 
 const MoviePlayer = () => {
@@ -27,16 +27,8 @@ const MoviePlayer = () => {
   useEffect(() => {
     const fetchMovie = async () => {
       try {
-        // We will build this endpoint down the line, simulating for now or fetching if available
-        // const response = await axios.get(`/api/videos/${id}`);
-        // setMovie(response.data.video);
-        
-        // Mock data for immediate preview if API is not yet ready
-        setMovie({
-          title: "Sample Movie for Testing",
-          description: "This is a wonderful test movie.",
-          videoUrl: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" // A public HLS test stream
-        });
+        const response = await api.get(`/videos/${id}`);
+        setMovie(response.data.video);
         setLoading(false);
       } catch (err) {
         setError('Failed to fetch movie details.');
@@ -49,6 +41,13 @@ const MoviePlayer = () => {
   if (loading) return <div className="movie-loading">Loading movie...</div>;
   if (error) return <div className="movie-error">{error}</div>;
 
+  const getVideoSource = () => {
+    if (!movie || !movie.videoUrl) return '';
+    if (movie.videoUrl.startsWith('http')) return movie.videoUrl;
+    // Route local paths directly through the Node streaming core parameter proxy
+    return `${api.defaults.baseURL}/videos/${id}/stream`;
+  };
+
   return (
     <div className="movie-player-container">
       <button className="back-btn" onClick={handleBack}>
@@ -58,7 +57,7 @@ const MoviePlayer = () => {
       <div className="player-wrapper">
         <ReactPlayer
           className="react-player"
-          url={movie.videoUrl}
+          url={getVideoSource()}
           controls={true}
           width="100%"
           height="100%"
