@@ -5,6 +5,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/database');
 const initSocket = require('./config/socket');
+const { corsOrigin } = require('./config/allowedOrigins');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 // Route imports
@@ -25,7 +26,7 @@ app.set('io', io);
 connectDB();
 
 // Middleware
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000', credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));

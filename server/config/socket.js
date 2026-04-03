@@ -1,11 +1,12 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const chatSocket = require('../sockets/chatSocket');
+const { corsOrigin } = require('./allowedOrigins');
 
 const initSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
+      origin: corsOrigin,
       methods: ['GET', 'POST'],
       credentials: true,
     },

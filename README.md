@@ -35,6 +35,25 @@ cd server && npm run dev
 cd client && npm start
 ```
 
+## Deployment Notes
+
+If you deploy the frontend to Vercel, the build can succeed while runtime API calls still fail. The frontend needs production environment variables at build time:
+
+```bash
+REACT_APP_API_URL=https://your-backend-domain.com/api
+REACT_APP_SOCKET_URL=https://your-backend-domain.com
+```
+
+The backend must also allow the deployed frontend origin:
+
+```bash
+CLIENT_URL=https://your-app.vercel.app
+CLIENT_URLS=https://your-app.vercel.app,https://your-preview-domain.vercel.app
+ALLOW_VERCEL_PREVIEWS=true
+```
+
+`ALLOW_VERCEL_PREVIEWS=true` is optional and allows `*.vercel.app` preview deployments to connect without updating the backend for every preview URL.
+
 ## Pages
 | Route | Page | Auth |
 |-------|------|------|

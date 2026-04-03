@@ -48,6 +48,8 @@ const MoviePlayer = () => {
     return `${api.defaults.baseURL}/videos/${id}/stream`;
   };
 
+  const videoSource = getVideoSource();
+
   return (
     <div className="movie-player-container">
       <button className="back-btn" onClick={handleBack}>
@@ -57,11 +59,13 @@ const MoviePlayer = () => {
       <div className="player-wrapper">
         <ReactPlayer
           className="react-player"
-          url={getVideoSource()}
+          src={videoSource}
           controls={true}
           width="100%"
           height="100%"
           playing={playing}
+          playsInline={true}
+          onError={() => setError('This movie could not be played. Please check the video source.')}
         />
       </div>
 
