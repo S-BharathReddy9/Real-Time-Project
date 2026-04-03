@@ -39,15 +39,8 @@ const seedMovie = async () => {
       {
         title: "My Amazing First Movie",
         description: "This is a movie I added from my seed script!",
-        thumbnailUrl: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1025",
+        thumbnailUrl: "C:\Home\WhatsApp Image 2026-04-01 at 15.08.13.jpeg",
         videoUrl: String.raw`C:\Home\WhatsApp Video 2026-03-21 at 19.07.50.mp4`,
-        uploadedBy: user._id
-      },
-      {
-        title: "Awesome Second Movie",
-        description: "Another movie added straight into the database.",
-        thumbnailUrl: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000",
-        videoUrl: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
         uploadedBy: user._id
       }
       // You can copy and paste fully new blocks here to add dozens of movies at once!
