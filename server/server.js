@@ -41,6 +41,14 @@ app.use('/api/videos', videoRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'StreamSphere server is live 🔴' }));
 
+app.get('/', (req, res) =>
+  res.json({
+    status: 'ok',
+    service: 'StreamSphere backend',
+    health: '/health',
+  })
+);
+
 // Error handler
 app.use(errorHandler);
 
