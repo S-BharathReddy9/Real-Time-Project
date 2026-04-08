@@ -275,13 +275,13 @@ export function StreamerPlayer({ streamId }) {
 
   return (
     <div className="vp-container vp-streamer">
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-        <span 
+      <div className="vp-topbar">
+        <span
+          className="vp-stream-chip"
           onClick={() => {
             navigator.clipboard.writeText(streamId);
             alert(`Stream ID ${streamId} copied to clipboard!`);
           }} 
-          style={{ cursor: 'pointer', background: '#333', padding: '6px 12px', borderRadius: '4px', fontSize: '13px', border: '1px solid #444', color: '#00e5ff', fontWeight: 'bold' }} 
           title="Click to copy Stream ID"
         >
           Stream ID: {streamId} 📋
@@ -289,9 +289,9 @@ export function StreamerPlayer({ streamId }) {
       </div>
 
       {/* Preview */}
-      <div className="vp-video-wrap">
+      <div className={`vp-video-wrap ${videoSource === 'movie' ? 'vp-video-wrap--movie' : ''}`}>
         <video ref={localVideoRef} autoPlay muted playsInline className="vp-video" style={{ display: videoSource === 'movie' && live ? 'none' : 'block' }} />
-        <video ref={moviePlayerRef} autoPlay crossOrigin="anonymous" playsInline controls className="vp-video" style={{ display: videoSource === 'movie' && live ? 'block' : 'none', width: '100%', height: '100%', objectFit: 'contain', backgroundColor: 'black' }} />
+        <video ref={moviePlayerRef} autoPlay crossOrigin="anonymous" playsInline controls className="vp-video vp-video--movie" style={{ display: videoSource === 'movie' && live ? 'block' : 'none' }} />
         {!live && (
           <div className="vp-offline-overlay">
             <div className="vp-offline-icon">🎥</div>
@@ -327,7 +327,7 @@ export function StreamerPlayer({ streamId }) {
             </div>
 
             {videoSource === 'movie' && (
-              <select className="vp-movie-select" style={{ marginBottom: '15px', padding: '10px', width: '100%', borderRadius: '4px', background: '#222', color: 'white', border: '1px solid #444' }}
+              <select className="vp-movie-select vp-movie-select--stacked"
                 onChange={e => setSelectedMovie(movies.find(m => m._id === e.target.value))}
                 value={selectedMovie?._id || ''}>
                 <option value="">Select a Movie to Stream...</option>
@@ -343,7 +343,7 @@ export function StreamerPlayer({ streamId }) {
           <>
             <button className={`vp-ctrl-btn ${muted ? 'vp-ctrl-btn--off' : ''}`} onClick={toggleMute} title={muted ? 'Unmute mic' : 'Mute mic'}>{muted ? '🔇' : '🎙️'}</button>
             <button className={`vp-ctrl-btn ${camOff ? 'vp-ctrl-btn--off' : ''}`} onClick={toggleCamera} title={camOff ? 'Turn camera on' : 'Turn camera off'}>{camOff ? '📷' : '📸'}</button>
-            <div className="vp-source-toggle" style={{ margin: '0 auto' }}>
+            <div className="vp-source-toggle vp-source-toggle--live">
               <button className={`vp-source-btn ${videoSource === 'camera' ? 'active' : ''}`} onClick={() => switchSource('camera')} title="Switch to Camera">📷</button>
               <button className={`vp-source-btn ${videoSource === 'screen' ? 'active' : ''}`} onClick={() => switchSource('screen')} title="Switch to Screen">🖥️</button>
               <button className={`vp-source-btn ${videoSource === 'movie' ? 'active' : ''}`} onClick={async () => {
@@ -358,7 +358,7 @@ export function StreamerPlayer({ streamId }) {
             <button className="btn btn-danger" onClick={endStreamSession}>■ End stream</button>
             
             {videoSource === 'movie' && (
-              <select className="vp-movie-select" style={{ marginTop: '15px', padding: '10px', width: '100%', borderRadius: '4px', background: '#222', color: 'white', border: '1px solid #444' }}
+              <select className="vp-movie-select vp-movie-select--live"
                 onChange={async (e) => {
                   const m = movies.find(x => x._id === e.target.value);
                   setSelectedMovie(m);

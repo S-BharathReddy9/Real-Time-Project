@@ -88,24 +88,30 @@ export default function Stream() {
 
   const isOwner = stream && user &&
     (stream.streamer?._id === user._id || stream.streamer === user._id);
+  const streamerName = stream?.streamer?.username || 'Streamer';
+  const streamerProfileHref = stream?.streamer?._id ? `/profile/${stream.streamer._id}` : '/';
+  const chatTitle = isOwner ? 'Live Chat' : 'Viewer Chat';
+  const chatSubtitle = isOwner ? 'Audience messages and join activity' : 'Talk with everyone watching live';
+  const chatPlaceholder = isOwner ? 'Reply to your audience' : 'Join the conversation';
+  const streamSummaryTitle = isOwner ? 'Stream details' : 'About this stream';
 
   if (loading) return (
     <div className="stream-loading">
       <div className="stream-skeleton-video" />
-      <p>Loading stream…</p>
+      <p>Loading stream...</p>
     </div>
   );
 
   if (pageError) return (
     <div className="stream-error-page">
-      <h2>😶 {pageError}</h2>
+      <h2>{pageError}</h2>
       <Link to="/" className="btn btn-outline" style={{ marginTop: 20 }}>Browse streams</Link>
     </div>
   );
 
   return (
-    <div className="stream-page">
-      <div className="stream-layout">
+    <div className={`stream-page ${isOwner ? 'stream-page--host' : 'stream-page--viewer'}`}>
+      <div className={`stream-layout ${isOwner ? 'stream-layout--host' : 'stream-layout--viewer'}`}>
 
         {/* ── Left: video + info ── */}
         <div className="stream-main">
@@ -116,8 +122,59 @@ export default function Stream() {
             : <ViewerPlayer   streamId={id} />
           }
 
+          {isOwner && (
+            <section className="host-console-card">
+              <div className="host-console-card__eyebrow">Broadcast Console</div>
+              <div className="host-console-card__body">
+                <div className="host-console-card__content">
+                  <h1 className="host-console-card__title">{stream.title}</h1>
+                  <p className="host-console-card__subtitle">
+                    Streaming as <Link to={streamerProfileHref} className="host-console-card__link">{streamerName}</Link>
+                  </p>
+                </div>
+                <div className="host-console-card__stats">
+                  <span className="vp-viewer-pill host-console-card__pill">
+                    <span className="viewer-dot" /> {formatViewerCount(viewers)} watching
+                  </span>
+                  {stream.isLive && <span className="badge-live">LIVE</span>}
+                </div>
+              </div>
+              <p className="host-console-card__hint">Use the player controls to switch sources, manage audio, or end the session.</p>
+            </section>
+          )}
+
+          {!isOwner && (
+            <section className="viewer-hero">
+              <div className="viewer-hero__eyebrow">Watching Live</div>
+              <div className="viewer-hero__body">
+                <div className="stream-avatar viewer-hero__avatar">
+                  {stream.streamer?.avatar
+                    ? <img src={stream.streamer.avatar} alt={streamerName} />
+                    : <span>{streamerName?.[0]?.toUpperCase()}</span>
+                  }
+                  {stream.isLive && <span className="avatar-live-ring" />}
+                </div>
+
+                <div className="viewer-hero__content">
+                  <h1 className="viewer-hero__title">{stream.title}</h1>
+                  <div className="viewer-hero__meta">
+                    <span className="viewer-hero__label">Hosted by</span>
+                    <Link to={streamerProfileHref} className="stream-streamer-link viewer-hero__link">
+                      {streamerName}
+                    </Link>
+                    <span className="stream-card-category">{stream.category}</span>
+                    <span className="vp-viewer-pill viewer-hero__pill">
+                      <span className="viewer-dot" /> {formatViewerCount(viewers)} watching
+                    </span>
+                  </div>
+                  <p className="viewer-hero__hint">Viewer mode keeps playback first and hides broadcaster controls.</p>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Stream info */}
-          <div className="stream-info">
+          <div className={`stream-info ${isOwner ? 'stream-info--host' : 'stream-info--viewer'}`}>
             <div className="stream-info-top">
               <div className="stream-avatar">
                 {stream.streamer?.avatar
@@ -127,16 +184,16 @@ export default function Stream() {
                 {stream.isLive && <span className="avatar-live-ring" />}
               </div>
               <div className="stream-info-text">
-                <h1 className="stream-title">{stream.title}</h1>
+                <h1 className="stream-title">{streamSummaryTitle}</h1>
                 <div className="stream-meta-row">
-                  <Link to={`/profile/${stream.streamer?._id}`} className="stream-streamer-link">
-                    {stream.streamer?.username}
+                  <Link to={streamerProfileHref} className="stream-streamer-link">
+                    {streamerName}
                   </Link>
                   <span className="stream-card-category">{stream.category}</span>
                   {stream.isLive && (
-                    <span className="badge-live" style={{ fontSize: 10 }}>LIVE</span>
+                    <span className="badge-live badge-live--compact">LIVE</span>
                   )}
-                  <span className="vp-viewer-pill" style={{ position: 'static', fontSize: 12, padding: '3px 10px' }}>
+                  <span className="vp-viewer-pill stream-meta-pill">
                     <span className="viewer-dot" /> {formatViewerCount(viewers)} watching
                   </span>
                 </div>
@@ -145,13 +202,19 @@ export default function Stream() {
             {stream.description && (
               <p className="stream-description">{stream.description}</p>
             )}
+            {!isOwner && !stream.description && (
+              <p className="stream-description">Enjoy the stream and chat with everyone watching live.</p>
+            )}
           </div>
         </div>
 
         {/* ── Right: chat ── */}
-        <div className="stream-chat">
+        <div className={`stream-chat ${isOwner ? 'stream-chat--host' : 'stream-chat--viewer'}`}>
           <div className="chat-header">
-            <span className="chat-title">Live Chat</span>
+            <div className="chat-header-copy">
+              <span className="chat-title">{chatTitle}</span>
+              <span className="chat-subtitle">{chatSubtitle}</span>
+            </div>
             <span className="chat-count">{messages.length} messages</span>
           </div>
 
@@ -189,12 +252,12 @@ export default function Stream() {
                 <input
                   className="chat-input"
                   type="text"
-                  placeholder="Send a message…"
+                  placeholder={chatPlaceholder}
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
                   maxLength={500}
                 />
-                <button type="submit" className="chat-send-btn" disabled={!chatInput.trim()}>↑</button>
+                <button type="submit" className="chat-send-btn" disabled={!chatInput.trim()}>Send</button>
               </>
             )}
           </form>
