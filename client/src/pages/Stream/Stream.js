@@ -6,6 +6,7 @@ import {
   initSocket, disconnectSocket,
   joinStream, leaveStream,
   sendMessage, onMessage, offMessage,
+  onChatCleared, offChatCleared,
   onUserJoined, onViewerCount,
 } from '../../services/socketService';
 import { StreamerPlayer, ViewerPlayer } from '../../components/VideoPlayer/VideoPlayer';
@@ -58,6 +59,11 @@ export default function Stream() {
     joinStream(id);
 
     onMessage(msg  => setMessages(prev => [...prev, msg]));
+    onChatCleared(({ streamId }) => {
+      if (streamId === id) {
+        setMessages([]);
+      }
+    });
     onUserJoined(({ username }) => {
       setJoined(prev => [...prev.slice(-2), username]);
       setTimeout(() => setJoined(prev => prev.filter(u => u !== username)), 4000);
@@ -67,6 +73,7 @@ export default function Stream() {
     return () => {
       leaveStream(id);
       offMessage();
+      offChatCleared();
       disconnectSocket();
     };
   }, [id, user]);

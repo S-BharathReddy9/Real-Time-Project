@@ -1,4 +1,5 @@
 const chatService = require('../services/chatService');
+const streamService = require('../services/streamService');
 
 // Track streamers per room: streamId -> socketId
 const streamers = {};
@@ -100,6 +101,14 @@ module.exports = (io, socket) => {
       if (socket.data.isStreamer) {
         delete streamers[streamId];
         socket.to(streamId).emit('streamer:ended');
+        streamService.endStream(streamId, socket.user.id)
+          .then((stream) => {
+            io.emit('stream:ended', stream);
+            io.to(streamId).emit('chat:cleared', { streamId });
+          })
+          .catch((err) => {
+            console.error('[stream cleanup] Failed to end stream on disconnect:', err?.message || err);
+          });
       }
       const count = io.sockets.adapter.rooms.get(streamId)?.size || 0;
       io.to(streamId).emit('viewer:count', { count });

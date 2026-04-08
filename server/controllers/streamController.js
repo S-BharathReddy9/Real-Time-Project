@@ -33,7 +33,10 @@ exports.goLive = async (req, res, next) => {
 exports.endStream = async (req, res, next) => {
   try {
     const stream = await streamService.endStream(req.params.id, req.user._id);
-    req.app.get('io').emit('stream:ended', stream);
+    const io = req.app.get('io');
+    io.emit('stream:ended', stream);
+    io.to(String(stream._id)).emit('streamer:ended');
+    io.to(String(stream._id)).emit('chat:cleared', { streamId: String(stream._id) });
     res.json({ success: true, stream });
   } catch (err) { next(err); }
 };

@@ -9,3 +9,6 @@ exports.getStreamMessages = (streamId, limit = 50) =>
     .sort({ createdAt: -1 })
     .limit(limit)
     .then((msgs) => msgs.reverse());
+
+exports.deleteStreamMessages = (streamId) =>
+  Message.deleteMany({ stream: streamId });

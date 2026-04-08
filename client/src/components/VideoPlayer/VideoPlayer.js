@@ -10,6 +10,60 @@ const ICE_SERVERS = {
   ],
 };
 
+const waitForMediaReady = (mediaEl) =>
+  new Promise((resolve, reject) => {
+    if (!mediaEl) {
+      reject(new Error('Movie player is not ready.'));
+      return;
+    }
+
+    if (mediaEl.readyState >= 2) {
+      resolve();
+      return;
+    }
+
+    const handleReady = () => {
+      cleanup();
+      resolve();
+    };
+
+    const handleError = () => {
+      cleanup();
+      reject(new Error('Movie could not be loaded for streaming.'));
+    };
+
+    const cleanup = () => {
+      mediaEl.removeEventListener('loadeddata', handleReady);
+      mediaEl.removeEventListener('canplay', handleReady);
+      mediaEl.removeEventListener('error', handleError);
+    };
+
+    mediaEl.addEventListener('loadeddata', handleReady, { once: true });
+    mediaEl.addEventListener('canplay', handleReady, { once: true });
+    mediaEl.addEventListener('error', handleError, { once: true });
+  });
+
+const waitForCapturedTracks = (stream, timeoutMs = 3000) =>
+  new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
+    const checkTracks = () => {
+      if (stream?.getVideoTracks().length || stream?.getAudioTracks().length) {
+        resolve(stream);
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        reject(new Error('Movie stream could not be captured. Try a different video file.'));
+        return;
+      }
+
+      setTimeout(checkTracks, 100);
+    };
+
+    checkTracks();
+  });
+
 // ─────────────────────────────────────────────────────────
 //  STREAMER — captures webcam/screen, sends to all viewers
 // ─────────────────────────────────────────────────────────
@@ -109,13 +163,26 @@ export function StreamerPlayer({ streamId }) {
         const movieUrl = selectedMovie.videoUrl.startsWith('http') 
           ? selectedMovie.videoUrl 
           : `${api.defaults.baseURL}/videos/${selectedMovie._id}/stream`;
-          
+
+        if (!moviePlayerRef.current) {
+          throw new Error('Movie player is not ready yet.');
+        }
+
         moviePlayerRef.current.src = movieUrl;
+        await waitForMediaReady(moviePlayerRef.current);
         await moviePlayerRef.current.play();
-        
-        stream = moviePlayerRef.current.captureStream 
-          ? moviePlayerRef.current.captureStream(30) 
-          : moviePlayerRef.current.mozCaptureStream(30);
+
+        const capturedStream = moviePlayerRef.current.captureStream
+          ? moviePlayerRef.current.captureStream(30)
+          : moviePlayerRef.current.mozCaptureStream
+            ? moviePlayerRef.current.mozCaptureStream(30)
+            : null;
+
+        if (!capturedStream) {
+          throw new Error('This browser does not support movie capture for live streaming.');
+        }
+
+        stream = await waitForCapturedTracks(capturedStream);
           
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -141,7 +208,7 @@ export function StreamerPlayer({ streamId }) {
     }
   };
 
-  const stopStream = () => {
+  const stopBroadcast = () => {
     localStream.current?.getTracks().forEach(t => t.stop());
     Object.values(peers.current).forEach(pc => pc.close());
     peers.current = {};
@@ -160,6 +227,19 @@ export function StreamerPlayer({ streamId }) {
     }
     socket.emit('webrtc:stop', { streamId });
     setLive(false);
+  };
+
+  const endStreamSession = async () => {
+    stopBroadcast();
+
+    try {
+      await api.patch(`/streams/${streamId}/end`);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+        'Stream ended locally, but server cleanup failed. Please refresh your dashboard.'
+      );
+    }
   };
   
   useEffect(() => {
@@ -188,7 +268,7 @@ export function StreamerPlayer({ streamId }) {
   };
 
   const switchSource = async (source) => {
-    if (live) stopStream();
+    if (live) stopBroadcast();
     setVideoSource(source);
     await startStream(source);
   };
@@ -269,13 +349,13 @@ export function StreamerPlayer({ streamId }) {
               <button className={`vp-source-btn ${videoSource === 'movie' ? 'active' : ''}`} onClick={async () => {
                   setVideoSource('movie');
                   if (selectedMovie) {
-                    if (live) stopStream();
+                    if (live) stopBroadcast();
                     setTimeout(() => startStream('movie'), 100);
                   }
               }} title="Switch to Movie">🎬</button>
             </div>
             
-            <button className="btn btn-danger" onClick={stopStream}>■ End stream</button>
+            <button className="btn btn-danger" onClick={endStreamSession}>■ End stream</button>
             
             {videoSource === 'movie' && (
               <select className="vp-movie-select" style={{ marginTop: '15px', padding: '10px', width: '100%', borderRadius: '4px', background: '#222', color: 'white', border: '1px solid #444' }}
@@ -283,7 +363,7 @@ export function StreamerPlayer({ streamId }) {
                   const m = movies.find(x => x._id === e.target.value);
                   setSelectedMovie(m);
                   if (m && live) {
-                     stopStream();
+                     stopBroadcast();
                      setTimeout(() => startStream('movie'), 500);
                   }
                 }}
@@ -308,7 +388,7 @@ export function ViewerPlayer({ streamId }) {
   const socket         = getSocket();
 
   const [status,   setStatus]   = useState('waiting');  // waiting | connecting | live | ended
-  const [muted,    setMuted]    = useState(false);
+  const [muted,    setMuted]    = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -322,6 +402,8 @@ export function ViewerPlayer({ streamId }) {
     pc.ontrack = ({ streams }) => {
       if (remoteVideoRef.current && streams[0]) {
         remoteVideoRef.current.srcObject = streams[0];
+        remoteVideoRef.current.muted = true;
+        remoteVideoRef.current.play?.().catch(() => {});
         setStatus('live');
       }
     };
@@ -401,7 +483,7 @@ export function ViewerPlayer({ streamId }) {
   return (
     <div className="vp-container vp-viewer" ref={wrapRef}>
       <div className="vp-video-wrap">
-        <video ref={remoteVideoRef} autoPlay playsInline className="vp-video" />
+        <video ref={remoteVideoRef} autoPlay playsInline muted={muted} className="vp-video" />
 
         {status === 'waiting' && (
           <div className="vp-offline-overlay">

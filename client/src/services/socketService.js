@@ -23,6 +23,8 @@ export const leaveStream = (streamId) => socket?.emit('leave:stream', { streamId
 export const sendMessage   = (streamId, content) => socket?.emit('chat:message', { streamId, content });
 export const onMessage     = (cb) => socket?.on('chat:message', cb);
 export const offMessage    = ()   => socket?.off('chat:message');
+export const onChatCleared = (cb) => socket?.on('chat:cleared', cb);
+export const offChatCleared = ()  => socket?.off('chat:cleared');
 export const onUserJoined  = (cb) => socket?.on('user:joined', cb);
 export const onViewerCount = (cb) => socket?.on('viewer:count', cb);
 

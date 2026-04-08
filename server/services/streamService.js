@@ -1,5 +1,6 @@
 const Stream = require('../models/Stream');
 const { v4: uuidv4 } = require('crypto');
+const chatService = require('./chatService');
 
 exports.createStream = async ({ title, description, category, tags, streamerId }) => {
   const streamKey = require('crypto').randomBytes(16).toString('hex');
@@ -25,5 +26,7 @@ exports.endStream = async (streamId, userId) => {
   if (!stream) throw { statusCode: 404, message: 'Stream not found' };
   stream.isLive = false;
   stream.endedAt = new Date();
-  return stream.save();
+  const savedStream = await stream.save();
+  await chatService.deleteStreamMessages(streamId);
+  return savedStream;
 };

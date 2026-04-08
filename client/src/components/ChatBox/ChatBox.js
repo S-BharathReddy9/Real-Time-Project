@@ -3,6 +3,7 @@ import { formatTime, getInitials } from '../../utils/helpers';
 import {
   joinStream, leaveStream,
   sendMessage, onMessage, offMessage,
+  onChatCleared, offChatCleared,
   onUserJoined, getSocket,
 } from '../../services/socketService';
 import './ChatBox.css';
@@ -23,6 +24,12 @@ export default function ChatBox({ streamId, currentUser, initialMessages = [] })
       setMessages(prev => [...prev, msg]);
     });
 
+    onChatCleared(({ streamId: clearedStreamId }) => {
+      if (clearedStreamId === streamId) {
+        setMessages([]);
+      }
+    });
+
     onUserJoined(() => setOnline(n => n + 1));
 
     socket.on('user:left',    () => setOnline(n => Math.max(0, n - 1)));
@@ -31,6 +38,7 @@ export default function ChatBox({ streamId, currentUser, initialMessages = [] })
     return () => {
       leaveStream(streamId);
       offMessage();
+      offChatCleared();
     };
   }, [streamId]);
 
