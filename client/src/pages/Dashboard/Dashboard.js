@@ -63,7 +63,7 @@ export default function Dashboard() {
         <div className="dash-header">
           <div>
             <h1 className="dash-title">Dashboard</h1>
-            <p className="dash-sub">Welcome back, <span style={{color:'#00e5ff'}}>{user?.username}</span></p>
+            <p className="dash-sub">Welcome back, <span className="dash-sub-accent">{user?.username}</span></p>
           </div>
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
             + New Stream
@@ -93,7 +93,7 @@ export default function Dashboard() {
           {myStreams.length === 0 && (
             <div className="dash-empty">
               <p>You haven't created any streams yet.</p>
-              <button className="btn btn-outline" onClick={() => setShowCreateModal(true)} style={{marginTop:16}}>
+              <button className="btn btn-outline dash-empty-action" onClick={() => setShowCreateModal(true)}>
                 Create your first stream
               </button>
             </div>
@@ -113,15 +113,15 @@ export default function Dashboard() {
                           <span className="my-stream-viewers">{formatViewerCount(stream.viewerCount)} viewers</span>
                         )}
                         <span className="my-stream-time">{timeAgo(stream.createdAt)}</span>
-                        <span 
+                        <span
+                          className="my-stream-id"
                           onClick={() => {
                             navigator.clipboard.writeText(stream._id);
                             alert(`Stream ID ${stream._id} copied to clipboard!`);
-                          }} 
-                          style={{ cursor: 'pointer', background: '#333', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', marginLeft: '10px', border: '1px solid #444', color: '#ff2a5f' }} 
+                          }}
                           title="Click to copy Stream ID"
                         >
-                          ID: {stream._id} 📋
+                          ID: {stream._id}
                         </span>
                       </div>
                     </div>
@@ -129,11 +129,11 @@ export default function Dashboard() {
                   <div className="my-stream-actions">
                     {stream.isLive ? (
                       <>
-                        <Link to={`/stream/${stream._id}`} className="btn btn-outline" style={{fontSize:13}}>View</Link>
-                        <button className="btn btn-danger" style={{fontSize:13}} onClick={() => handleEnd(stream._id)}>End stream</button>
+                        <Link to={`/stream/${stream._id}`} className="btn btn-outline my-stream-btn">View</Link>
+                        <button className="btn btn-danger my-stream-btn" onClick={() => handleEnd(stream._id)}>End stream</button>
                       </>
                     ) : (
-                      <button className="btn btn-primary" style={{fontSize:13}} onClick={() => handleGoLive(stream._id)}>
+                      <button className="btn btn-primary my-stream-btn" onClick={() => handleGoLive(stream._id)}>
                         Go Live
                       </button>
                     )}
@@ -146,11 +146,11 @@ export default function Dashboard() {
 
         {/* Browse live */}
         <div className="dash-section">
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div className="dash-section-head">
             <h2 className="dash-section-title">Browse Live</h2>
-            <Link to="/" className="dash-see-all">See all →</Link>
+            <Link to="/" className="dash-see-all">See all -></Link>
           </div>
-          <div className="streams-grid" style={{marginTop:16}}>
+          <div className="streams-grid dash-browse-grid">
             {streams.slice(0, 3).map(s => (
               <div key={s._id} className="stream-card" onClick={() => navigate(`/stream/${s._id}`)}>
                 <div className="stream-card-thumb">
@@ -177,28 +177,28 @@ export default function Dashboard() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Create a new stream</h2>
-              <button className="modal-close" onClick={() => setShowCreateModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>x</button>
             </div>
-            {formError && <div className="auth-error" style={{marginBottom:16}}>{formError}</div>}
+            {formError && <div className="auth-error modal-error">{formError}</div>}
             <form onSubmit={handleCreate} noValidate>
-              <div className="field-group" style={{marginBottom:16}}>
+              <div className="field-group modal-field">
                 <label className="field-label">Stream title *</label>
                 <input className="field-input" type="text" placeholder="What are you streaming?"
                   value={form.title} onChange={e => { setForm({...form, title: e.target.value}); setFormError(''); }} />
               </div>
-              <div className="field-group" style={{marginBottom:16}}>
+              <div className="field-group modal-field">
                 <label className="field-label">Description</label>
                 <textarea className="field-input field-textarea"
                   placeholder="Tell your viewers what this stream is about..."
                   value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
               </div>
-              <div className="field-group" style={{marginBottom:24}}>
+              <div className="field-group modal-field modal-field--last">
                 <label className="field-label">Category</label>
                 <select className="field-input" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
                   {STREAM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
+              <div className="modal-actions">
                 <button type="button" className="btn btn-outline" onClick={() => setShowCreateModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
                   {creating ? 'Creating...' : 'Create Stream'}

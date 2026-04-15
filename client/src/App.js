@@ -12,7 +12,7 @@ export default function App() {
       <AuthProvider>
         <StreamProvider>
           <Navbar />
-          <main>
+          <main className="app-main">
             <AppRoutes />
           </main>
         </StreamProvider>

@@ -93,6 +93,15 @@ export function StreamerPlayer({ streamId }) {
 
   // Create a peer connection for one viewer and send an offer
   const createPeerForViewer = useCallback(async (viewerId) => {
+    const existingPeer = peers.current[viewerId];
+    if (existingPeer) {
+      existingPeer.close();
+    }
+
+    if (!localStream.current?.getTracks().length) {
+      return;
+    }
+
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peers.current[viewerId] = pc;
 
@@ -104,6 +113,14 @@ export function StreamerPlayer({ streamId }) {
     // Send ICE candidates to that viewer
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket.emit('webrtc:ice', { targetId: viewerId, candidate });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+        if (peers.current[viewerId] === pc) {
+          delete peers.current[viewerId];
+        }
+      }
     };
 
     // Create and send offer
@@ -385,6 +402,8 @@ export function StreamerPlayer({ streamId }) {
 export function ViewerPlayer({ streamId }) {
   const remoteVideoRef = useRef(null);
   const pcRef          = useRef(null);
+  const streamerIdRef  = useRef(null);
+  const pendingIceRef  = useRef([]);
   const socket         = getSocket();
 
   const [status,   setStatus]   = useState('waiting');  // waiting | connecting | live | ended
@@ -392,8 +411,44 @@ export function ViewerPlayer({ streamId }) {
   const [fullscreen, setFullscreen] = useState(false);
   const wrapRef = useRef(null);
 
-  const connectToStreamer = useCallback(async (streamerId) => {
-    setStatus('connecting');
+  const clearRemoteVideo = useCallback(() => {
+    if (!remoteVideoRef.current) return;
+
+    remoteVideoRef.current.pause();
+    remoteVideoRef.current.srcObject = null;
+    remoteVideoRef.current.removeAttribute('src');
+    remoteVideoRef.current.load();
+  }, []);
+
+  const closePeerConnection = useCallback(() => {
+    pendingIceRef.current = [];
+    if (!pcRef.current) return;
+
+    pcRef.current.ontrack = null;
+    pcRef.current.onicecandidate = null;
+    pcRef.current.oniceconnectionstatechange = null;
+    pcRef.current.onconnectionstatechange = null;
+    pcRef.current.close();
+    pcRef.current = null;
+  }, []);
+
+  const flushPendingIce = useCallback(async (pc) => {
+    const queuedCandidates = [...pendingIceRef.current];
+    pendingIceRef.current = [];
+
+    for (const candidate of queuedCandidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error('Could not apply queued ICE candidate:', err);
+      }
+    }
+  }, []);
+
+  const ensurePeerConnection = useCallback(() => {
+    if (pcRef.current && pcRef.current.connectionState !== 'closed') {
+      return pcRef.current;
+    }
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
@@ -409,61 +464,121 @@ export function ViewerPlayer({ streamId }) {
     };
 
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket.emit('webrtc:ice', { targetId: streamerId, candidate });
+      if (candidate && streamerIdRef.current) {
+        socket.emit('webrtc:ice', { targetId: streamerIdRef.current, candidate });
+      }
     };
 
     pc.oniceconnectionstatechange = () => {
       if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) {
+        if (pcRef.current === pc) {
+          pcRef.current = null;
+        }
         setStatus('ended');
       }
     };
 
+    return pc;
+  }, [socket]);
+
+  const connectToStreamer = useCallback(({ streamerId, resetPeer = false } = {}) => {
+    if (!socket) return;
+
+    if (streamerId) {
+      streamerIdRef.current = streamerId;
+    }
+
+    if (resetPeer) {
+      closePeerConnection();
+    }
+
+    ensurePeerConnection();
+
     // Tell streamer we're ready → streamer will send offer
     socket.emit('webrtc:viewer-ready', { streamId });
-  }, [socket, streamId]);
+  }, [closePeerConnection, ensurePeerConnection, socket, streamId]);
 
   useEffect(() => {
     if (!socket) return;
 
-    // If streamer is already live when we join
-    socket.on('streamer:present', ({ streamerId }) => {
-      connectToStreamer(streamerId);
-    });
+    const handleSocketConnect = () => {
+      setStatus(prev => (prev === 'ended' ? 'waiting' : prev));
+      connectToStreamer({ resetPeer: true });
+    };
 
-    // Receive offer from streamer
-    socket.on('webrtc:offer', async ({ streamerId, offer }) => {
-      const pc = pcRef.current;
-      if (!pc) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('webrtc:answer', { streamerId, answer });
-    });
+    const handleStreamerPresent = ({ streamerId }) => {
+      setStatus('connecting');
+      connectToStreamer({ streamerId, resetPeer: true });
+    };
 
-    // ICE from streamer
-    socket.on('webrtc:ice', async ({ fromId, candidate }) => {
-      if (pcRef.current) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-    });
+    const handleOffer = async ({ streamerId, offer }) => {
+      try {
+        streamerIdRef.current = streamerId;
+        setStatus('connecting');
 
-    socket.on('streamer:ended', () => {
-      setStatus('ended');
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-      pcRef.current?.close();
-    });
+        let pc = ensurePeerConnection();
+        if (pc.signalingState !== 'stable') {
+          closePeerConnection();
+          pc = ensurePeerConnection();
+        }
 
-    return () => {
-      socket.off('streamer:present');
-      socket.off('webrtc:offer');
-      socket.off('webrtc:ice');
-      socket.off('streamer:ended');
-      pcRef.current?.close();
-      if (remoteVideoRef.current) {
-          remoteVideoRef.current.pause();
-          remoteVideoRef.current.removeAttribute('src');
-          remoteVideoRef.current.load();
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        await flushPendingIce(pc);
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('webrtc:answer', { streamerId, answer });
+      } catch (err) {
+        console.error('Failed to accept stream offer:', err);
+        closePeerConnection();
+        setStatus('waiting');
       }
     };
-  }, [socket, connectToStreamer]);
+
+    const handleIce = async ({ fromId, candidate }) => {
+      if (streamerIdRef.current && fromId !== streamerIdRef.current) return;
+
+      const pc = ensurePeerConnection();
+      if (!pc.remoteDescription) {
+        pendingIceRef.current.push(candidate);
+        return;
+      }
+
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error('Failed to add ICE candidate:', err);
+      }
+    };
+
+    const handleStreamerEnded = () => {
+      streamerIdRef.current = null;
+      closePeerConnection();
+      setStatus('ended');
+      clearRemoteVideo();
+    };
+
+    socket.on('connect', handleSocketConnect);
+    socket.on('streamer:present', handleStreamerPresent);
+    socket.on('webrtc:offer', handleOffer);
+    socket.on('webrtc:ice', handleIce);
+    socket.on('streamer:ended', handleStreamerEnded);
+
+    if (socket.connected) {
+      connectToStreamer({ resetPeer: true });
+    }
+
+    return () => {
+      socket.off('connect', handleSocketConnect);
+      socket.off('streamer:present', handleStreamerPresent);
+      socket.off('webrtc:offer', handleOffer);
+      socket.off('webrtc:ice', handleIce);
+      socket.off('streamer:ended', handleStreamerEnded);
+      streamerIdRef.current = null;
+      closePeerConnection();
+      clearRemoteVideo();
+    };
+  }, [clearRemoteVideo, closePeerConnection, connectToStreamer, ensurePeerConnection, flushPendingIce, socket]);
 
   const toggleMute = () => {
     if (remoteVideoRef.current) remoteVideoRef.current.muted = !remoteVideoRef.current.muted;
