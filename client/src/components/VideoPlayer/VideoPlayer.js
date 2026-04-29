@@ -3,11 +3,19 @@ import { getSocket } from '../../services/socketService';
 import api from '../../services/api';
 import './VideoPlayer.css';
 
+// STUN/TURN servers for WebRTC - includes local network friendly servers
 const ICE_SERVERS = {
   iceServers: [
+    // Google STUN servers (works for internet)
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    // Twilio free STUN (fallback)
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
+  // ICE candidate policy - include all candidates (host, srflx, relay) for local network support
+  iceTransportPolicy: 'all',
+  iceCandidatePoolSize: 10,
 };
 
 const waitForMediaReady = (mediaEl) =>
@@ -99,23 +107,36 @@ export function StreamerPlayer({ streamId }) {
     }
 
     if (!localStream.current?.getTracks().length) {
+      console.log('[Streamer] No local tracks available');
       return;
     }
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peers.current[viewerId] = pc;
+    console.log('[Streamer] Created peer connection for viewer:', viewerId);
 
     // Add all local tracks
     localStream.current?.getTracks().forEach(track => {
+      console.log('[Streamer] Adding track:', track.kind, 'enabled:', track.enabled, 'readyState:', track.readyState);
       pc.addTrack(track, localStream.current);
     });
 
     // Send ICE candidates to that viewer
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket.emit('webrtc:ice', { targetId: viewerId, candidate });
+      if (candidate) {
+        console.log('[Streamer] Sending ICE to viewer:', viewerId, candidate.candidate?.substring(0, 50));
+        socket.emit('webrtc:ice', { targetId: viewerId, candidate });
+      } else {
+        console.log('[Streamer] ICE gathering complete for viewer:', viewerId);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('[Streamer] ICE connection state for viewer', viewerId, ':', pc.iceConnectionState);
     };
 
     pc.onconnectionstatechange = () => {
+      console.log('[Streamer] Connection state for viewer', viewerId, ':', pc.connectionState);
       if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
         if (peers.current[viewerId] === pc) {
           delete peers.current[viewerId];
@@ -123,10 +144,30 @@ export function StreamerPlayer({ streamId }) {
       }
     };
 
-    // Create and send offer
+    // Create offer
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.emit('webrtc:offer', { viewerId, offer });
+    console.log('[Streamer] Created offer for viewer:', viewerId, 'SDP:', offer.sdp?.substring(0, 100) + '...');
+
+    // Wait for ICE gathering to complete before sending offer
+    if (pc.iceGatheringState === 'complete') {
+      console.log('[Streamer] ICE already complete, sending offer');
+      socket.emit('webrtc:offer', { viewerId, offer: pc.localDescription });
+    } else {
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === 'complete') {
+          console.log('[Streamer] ICE gathering complete, sending offer');
+          socket.emit('webrtc:offer', { viewerId, offer: pc.localDescription });
+        }
+      };
+      // Timeout fallback - send offer after 1 second even if ICE isn't complete
+      setTimeout(() => {
+        if (pc.iceGatheringState !== 'complete' && pc.signalingState !== 'closed') {
+          console.log('[Streamer] ICE timeout, sending current offer');
+          socket.emit('webrtc:offer', { viewerId, offer: pc.localDescription });
+        }
+      }, 1000);
+    }
   }, [socket]);
 
   // Socket listeners
@@ -135,28 +176,35 @@ export function StreamerPlayer({ streamId }) {
 
     // A new viewer joined and is ready
     socket.on('webrtc:viewer-ready', ({ viewerId }) => {
+      console.log('[Streamer] Viewer ready:', viewerId);
       createPeerForViewer(viewerId);
     });
 
     // Viewer sent an answer
     socket.on('webrtc:answer', async ({ viewerId, answer }) => {
+      console.log('[Streamer] Received answer from viewer:', viewerId);
       const pc = peers.current[viewerId];
       if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
     // ICE from viewer
     socket.on('webrtc:ice', async ({ fromId, candidate }) => {
+      console.log('[Streamer] Received ICE from viewer:', fromId);
       const pc = peers.current[fromId];
       if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
-    socket.on('viewer:count', ({ count }) => setViewerCount(count));
+    const handleViewerCount = ({ count }) => {
+      console.log('[Streamer] Viewer count updated:', count);
+      setViewerCount(count);
+    };
+    socket.on('viewer:count', handleViewerCount);
 
     return () => {
       socket.off('webrtc:viewer-ready');
       socket.off('webrtc:answer');
       socket.off('webrtc:ice');
-      socket.off('viewer:count');
+      socket.off('viewer:count', handleViewerCount);
     };
   }, [socket, createPeerForViewer]);
 
@@ -173,13 +221,14 @@ export function StreamerPlayer({ streamId }) {
         stream = screen;
       } else if (source === 'movie') {
         if (!selectedMovie) throw new Error("Please select a movie to stream.");
-        
-        const isYouTube = selectedMovie.videoUrl.includes('youtube') || selectedMovie.videoUrl.includes('youtu.be');
+
+        const videoUrl = selectedMovie.videoUrl || '';
+        const isYouTube = videoUrl.includes('youtube') || videoUrl.includes('youtu.be');
         if (isYouTube) throw new Error("You cannot broadcast YouTube videos due to browser security restrictions on iframes. Please use a direct .mp4 link or a local file on your computer!");
 
-        const movieUrl = selectedMovie.videoUrl.startsWith('http') 
-          ? selectedMovie.videoUrl 
-          : `${api.defaults.baseURL}/videos/${selectedMovie._id}/stream`;
+        const movieUrl = videoUrl.startsWith('http')
+          ? videoUrl
+          : `${api.defaults?.baseURL || ''}/videos/${selectedMovie._id}/stream`;
 
         if (!moviePlayerRef.current) {
           throw new Error('Movie player is not ready yet.');
@@ -189,11 +238,18 @@ export function StreamerPlayer({ streamId }) {
         await waitForMediaReady(moviePlayerRef.current);
         await moviePlayerRef.current.play();
 
-        const capturedStream = moviePlayerRef.current.captureStream
-          ? moviePlayerRef.current.captureStream(30)
-          : moviePlayerRef.current.mozCaptureStream
-            ? moviePlayerRef.current.mozCaptureStream(30)
-            : null;
+        // Capture stream from video element - some browsers don't support fps parameter
+        let capturedStream = null;
+        try {
+          capturedStream = moviePlayerRef.current.captureStream
+            ? moviePlayerRef.current.captureStream()
+            : moviePlayerRef.current.mozCaptureStream
+              ? moviePlayerRef.current.mozCaptureStream()
+              : null;
+        } catch (captureErr) {
+          console.error('[Streamer] captureStream error:', captureErr);
+          throw new Error('Failed to capture video stream. This browser may not support movie streaming.');
+        }
 
         if (!capturedStream) {
           throw new Error('This browser does not support movie capture for live streaming.');
@@ -214,8 +270,15 @@ export function StreamerPlayer({ streamId }) {
         }
       }
 
+      // First announce we're live, THEN we can accept viewers
       socket.emit('webrtc:start', { streamId });
-      setLive(true);
+      console.log('[Streamer] Announced stream start to server');
+
+      // Give server time to register us before viewers connect
+      setTimeout(() => {
+        setLive(true);
+        console.log('[Streamer] Stream is now LIVE, ready to accept viewers');
+      }, 500);
     } catch (err) {
       setError(
         err.name === 'NotAllowedError'
@@ -409,6 +472,7 @@ export function ViewerPlayer({ streamId }) {
   const [status,   setStatus]   = useState('waiting');  // waiting | connecting | live | ended
   const [muted,    setMuted]    = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  const [streamerName, setStreamerName] = useState('');
   const wrapRef = useRef(null);
 
   const clearRemoteVideo = useCallback(() => {
@@ -452,30 +516,40 @@ export function ViewerPlayer({ streamId }) {
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
+    console.log('[Viewer] Created new peer connection');
 
-    // Display incoming video
-    pc.ontrack = ({ streams }) => {
-      if (remoteVideoRef.current && streams[0]) {
-        remoteVideoRef.current.srcObject = streams[0];
+    // Display incoming video - attach to video element immediately
+    pc.ontrack = (event) => {
+      console.log('[Viewer] Received track event:', event.track.kind, 'streams:', event.streams.length);
+      if (remoteVideoRef.current && event.streams[0]) {
+        const stream = event.streams[0];
+        console.log('[Viewer] Setting srcObject with stream. Tracks:', stream.getTracks().map(t => t.kind));
+        remoteVideoRef.current.srcObject = stream;
         remoteVideoRef.current.muted = true;
-        remoteVideoRef.current.play?.().catch(() => {});
+        remoteVideoRef.current.play?.().catch(e => console.error('[Viewer] Play error:', e));
         setStatus('live');
       }
     };
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate && streamerIdRef.current) {
+        console.log('[Viewer] Sending ICE to streamer:', candidate.candidate?.substring(0, 50));
         socket.emit('webrtc:ice', { targetId: streamerIdRef.current, candidate });
       }
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log('[Viewer] ICE connection state:', pc.iceConnectionState);
       if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) {
         if (pcRef.current === pc) {
           pcRef.current = null;
         }
         setStatus('ended');
       }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('[Viewer] Connection state:', pc.connectionState);
     };
 
     return pc;
@@ -486,17 +560,33 @@ export function ViewerPlayer({ streamId }) {
 
     if (streamerId) {
       streamerIdRef.current = streamerId;
+      console.log('[Viewer] Streamer detected:', streamerId);
     }
 
     if (resetPeer) {
       closePeerConnection();
     }
 
-    ensurePeerConnection();
+    const pc = ensurePeerConnection();
 
     // Tell streamer we're ready → streamer will send offer
+    console.log('[Viewer] Sending viewer-ready for stream:', streamId, 'PC state:', pc.connectionState);
     socket.emit('webrtc:viewer-ready', { streamId });
   }, [closePeerConnection, ensurePeerConnection, socket, streamId]);
+
+  // Polling mechanism to detect streamer presence (helps with network issues)
+  useEffect(() => {
+    if (!socket || status === 'live') return;
+
+    const pollInterval = setInterval(() => {
+      if (socket.connected && status !== 'live') {
+        console.log('[Viewer] Polling for streamer...');
+        socket.emit('webrtc:viewer-ready', { streamId });
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [socket, streamId, status]);
 
   useEffect(() => {
     if (!socket) return;
@@ -506,28 +596,53 @@ export function ViewerPlayer({ streamId }) {
       connectToStreamer({ resetPeer: true });
     };
 
-    const handleStreamerPresent = ({ streamerId }) => {
+    const handleStreamerPresent = ({ streamerId, username }) => {
+      console.log('[Viewer] Streamer present event:', streamerId, 'username:', username);
+      if (username) setStreamerName(username);
       setStatus('connecting');
       connectToStreamer({ streamerId, resetPeer: true });
     };
 
     const handleOffer = async ({ streamerId, offer }) => {
       try {
+        console.log('[Viewer] Received offer from streamer:', streamerId, 'SDP:', offer?.sdp?.substring(0, 100) + '...');
         streamerIdRef.current = streamerId;
         setStatus('connecting');
 
         let pc = ensurePeerConnection();
         if (pc.signalingState !== 'stable') {
+          console.log('[Viewer] Signaling state not stable, closing and recreating');
           closePeerConnection();
           pc = ensurePeerConnection();
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log('[Viewer] Set remote description');
         await flushPendingIce(pc);
 
         const answer = await pc.createAnswer();
+        console.log('[Viewer] Created answer');
         await pc.setLocalDescription(answer);
-        socket.emit('webrtc:answer', { streamerId, answer });
+
+        // Wait for ICE gathering before sending answer
+        if (pc.iceGatheringState === 'complete') {
+          console.log('[Viewer] ICE complete, sending answer');
+          socket.emit('webrtc:answer', { streamerId, answer: pc.localDescription });
+        } else {
+          pc.onicegatheringstatechange = () => {
+            if (pc.iceGatheringState === 'complete') {
+              console.log('[Viewer] ICE gathering complete, sending answer');
+              socket.emit('webrtc:answer', { streamerId, answer: pc.localDescription });
+            }
+          };
+          // Timeout fallback
+          setTimeout(() => {
+            if (pc.iceGatheringState !== 'complete' && pc.signalingState !== 'closed') {
+              console.log('[Viewer] ICE timeout, sending answer');
+              socket.emit('webrtc:answer', { streamerId, answer: pc.localDescription });
+            }
+          }, 1000);
+        }
       } catch (err) {
         console.error('Failed to accept stream offer:', err);
         closePeerConnection();
@@ -538,6 +653,7 @@ export function ViewerPlayer({ streamId }) {
     const handleIce = async ({ fromId, candidate }) => {
       if (streamerIdRef.current && fromId !== streamerIdRef.current) return;
 
+      console.log('[Viewer] Received ICE from:', fromId);
       const pc = ensurePeerConnection();
       if (!pc.remoteDescription) {
         pendingIceRef.current.push(candidate);
@@ -553,6 +669,7 @@ export function ViewerPlayer({ streamId }) {
 
     const handleStreamerEnded = () => {
       streamerIdRef.current = null;
+      setStreamerName('');
       closePeerConnection();
       setStatus('ended');
       clearRemoteVideo();
@@ -604,6 +721,7 @@ export function ViewerPlayer({ streamId }) {
           <div className="vp-offline-overlay">
             <div className="vp-spinner" />
             <p className="vp-offline-title">Waiting for stream to start…</p>
+            <p className="vp-offline-sub">Socket: {socket?.connected ? 'Connected' : 'Disconnected'}</p>
           </div>
         )}
 
@@ -611,6 +729,7 @@ export function ViewerPlayer({ streamId }) {
           <div className="vp-offline-overlay">
             <div className="vp-spinner" />
             <p className="vp-offline-title">Connecting…</p>
+            <p className="vp-offline-sub">Host: {streamerName || streamerIdRef.current?.substring(0,8) || 'Unknown'}</p>
           </div>
         )}
 
@@ -625,6 +744,9 @@ export function ViewerPlayer({ streamId }) {
         {status === 'live' && (
           <div className="vp-live-badges">
             <span className="badge-live">LIVE</span>
+            {streamerName && (
+              <span className="vp-host-pill">Host: {streamerName}</span>
+            )}
           </div>
         )}
 
@@ -639,6 +761,11 @@ export function ViewerPlayer({ streamId }) {
             </button>
           </div>
         )}
+      </div>
+      
+      {/* Debug info - remove in production */}
+      <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.7)', color: '#0f0', padding: '8px', fontSize: '10px', fontFamily: 'monospace' }}>
+        DEBUG: status={status} | socket={socket?.connected ? '✓' : '✗'} | streamer={streamerIdRef.current?.substring(0,8) || 'none'}
       </div>
     </div>
   );

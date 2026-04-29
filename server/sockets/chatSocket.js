@@ -13,7 +13,7 @@ module.exports = (io, socket) => {
 
     // Tell this viewer if there's already a live streamer in the room
     if (streamers[streamId]) {
-      socket.emit('streamer:present', { streamerId: streamers[streamId] });
+      socket.emit('streamer:present', { streamerId: streamers[streamId], username: streamers[streamId + ':username'] });
     }
 
     // Notify everyone else
@@ -56,16 +56,21 @@ module.exports = (io, socket) => {
   // Streamer announces they are live
   socket.on('webrtc:start', ({ streamId }) => {
     streamers[streamId] = socket.id;
+    streamers[streamId + ':username'] = socket.user.username;
     socket.data.isStreamer = true;
     socket.data.streamId   = streamId;
-    socket.to(streamId).emit('streamer:present', { streamerId: socket.id });
-    console.log(`[webrtc] streamer ${socket.user.username} started ${streamId}`);
+    socket.to(streamId).emit('streamer:present', { streamerId: socket.id, username: socket.user.username });
+    console.log(`[webrtc] streamer ${socket.user.username} started stream ${streamId} (socket: ${socket.id})`);
   });
 
   // Viewer requests to connect → tell the streamer
   socket.on('webrtc:viewer-ready', ({ streamId }) => {
     const streamerId = streamers[streamId];
-    if (!streamerId) return;
+    console.log(`[webrtc] viewer-ready from ${socket.user.username} for stream ${streamId}, streamer: ${streamerId}`);
+    if (!streamerId) {
+      console.log(`[webrtc] No streamer found for stream ${streamId}`);
+      return;
+    }
     io.to(streamerId).emit('webrtc:viewer-ready', {
       viewerId:  socket.id,
       viewerName: socket.user.username,
@@ -74,22 +79,26 @@ module.exports = (io, socket) => {
 
   // Streamer sends offer to a specific viewer
   socket.on('webrtc:offer', ({ viewerId, offer }) => {
+    console.log(`[webrtc] Forwarding offer from streamer to viewer ${viewerId}`);
     io.to(viewerId).emit('webrtc:offer', { streamerId: socket.id, offer });
   });
 
   // Viewer sends answer back to streamer
   socket.on('webrtc:answer', ({ streamerId, answer }) => {
+    console.log(`[webrtc] Forwarding answer from viewer to streamer ${streamerId}`);
     io.to(streamerId).emit('webrtc:answer', { viewerId: socket.id, answer });
   });
 
   // ICE candidates (both directions)
   socket.on('webrtc:ice', ({ targetId, candidate }) => {
+    // console.log(`[webrtc] Forwarding ICE to ${targetId}`);
     io.to(targetId).emit('webrtc:ice', { fromId: socket.id, candidate });
   });
 
   // Streamer ended
   socket.on('webrtc:stop', ({ streamId }) => {
     delete streamers[streamId];
+    delete streamers[streamId + ':username'];
     socket.to(streamId).emit('streamer:ended');
     console.log(`[webrtc] stream ended ${streamId}`);
   });

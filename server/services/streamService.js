@@ -1,5 +1,4 @@
 const Stream = require('../models/Stream');
-const { v4: uuidv4 } = require('crypto');
 const chatService = require('./chatService');
 
 exports.createStream = async ({ title, description, category, tags, streamerId }) => {

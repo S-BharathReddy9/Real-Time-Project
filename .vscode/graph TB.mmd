@@ -1,0 +1,76 @@
+graph TB
+    %% Actors
+    actor "User" as User
+    actor "Streamer" as Streamer
+    actor "Viewer" as Viewer
+    actor "Admin" as Admin
+    
+    %% Use Cases - Authentication
+    UC1["Register Account"]
+    UC2["Login"]
+    UC3["Logout"]
+    UC4["View Profile"]
+    UC5["Edit Profile"]
+    
+    %% Use Cases - Stream Management
+    UC6["Create Stream"]
+    UC7["Go Live"]
+    UC8["End Stream"]
+    UC9["View Stream Details"]
+    UC10["Delete Stream"]
+    
+    %% Use Cases - Viewing
+    UC11["Browse Streams"]
+    UC12["Watch Stream"]
+    UC13["View Dashboard"]
+    
+    %% Use Cases - Chat
+    UC14["Send Chat Message"]
+    UC15["Receive Chat Message"]
+    UC16["View Chat History"]
+    
+    %% Use Cases - Video
+    UC17["Upload Video"]
+    UC18["Browse Videos"]
+    UC19["Watch Video"]
+    
+    %% Relationships - User
+    User --> UC1
+    User --> UC2
+    User --> UC3
+    User --> UC4
+    User --> UC5
+    User --> UC11
+    User --> UC13
+    
+    %% Relationships - Streamer (inherits User)
+    Streamer --> UC6
+    Streamer --> UC7
+    Streamer --> UC8
+    Streamer --> UC10
+    Streamer --> UC17
+    
+    %% Relationships - Viewer (inherits User)
+    Viewer --> UC9
+    Viewer --> UC12
+    Viewer --> UC14
+    Viewer --> UC15
+    Viewer --> UC16
+    Viewer --> UC18
+    Viewer --> UC19
+    
+    %% Relationships - Admin
+    Admin --> UC10
+    Admin --> UC3
+    
+    %% Include relationships
+    UC6 ..> UC4 : <<include>>
+    UC7 ..> UC6 : <<include>>
+    UC12 ..> UC9 : <<include>>
+    UC14 ..> UC12 : <<include>>
+    UC15 ..> UC12 : <<include>>
+    UC19 ..> UC18 : <<include>>
+    
+    %% Extend relationships
+    UC5 ..> UC4 : <<extend>>
+    UC16 ..> UC14 : <<extend>>

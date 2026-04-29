@@ -1,21 +1,11 @@
+// Dynamic host detection - automatically uses the browser's current hostname/IP
 const browserHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 const browserProtocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-const isBrowserLocalhost = browserHost === 'localhost' || browserHost === '127.0.0.1';
 
-const envApiBase = process.env.REACT_APP_API_URL;
-const envSocketUrl = process.env.REACT_APP_SOCKET_URL;
-
-const pointsToLocalhost = (value = '') => /localhost|127\.0\.0\.1/i.test(value);
-
-export const API_BASE =
-  envApiBase && !(pointsToLocalhost(envApiBase) && !isBrowserLocalhost)
-    ? envApiBase
-    : '/api';
-
-export const SOCKET_URL =
-  envSocketUrl && !(pointsToLocalhost(envSocketUrl) && !isBrowserLocalhost)
-    ? envSocketUrl
-    : `${browserProtocol}//${browserHost}:5000`;
+// Auto-detect backend URL based on current browser location
+// Works with localhost, local IP (192.168.x.x), or any network IP
+export const API_BASE = `${browserProtocol}//${browserHost}:5000/api`;
+export const SOCKET_URL = `${browserProtocol}//${browserHost}:5000`;
 
 export const CATEGORIES        = ['Gaming','Music','Art','Tech','IRL','Sports','Education','General'];
 export const STREAM_CATEGORIES = CATEGORIES;

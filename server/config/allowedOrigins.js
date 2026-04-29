@@ -1,6 +1,8 @@
 const DEFAULT_ORIGINS = new Set([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'http://10.63.203.206:3000',
+  'http://10.63.203.23:3000',
 ]);
 
 const normalizeOrigin = (origin = '') => origin.trim().replace(/\/+$/, '');

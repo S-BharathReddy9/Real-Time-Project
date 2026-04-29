@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5000)",
+      "Bash(mongosh --eval \"db.adminCommand\\('ping'\\)\")",
+      "Bash(timeout 5 node server.js)",
+      "Bash(ipconfig)",
+      "Bash(findstr /i \"IPv4\")",
+      "Bash(findstr \":3000\")",
+      "Bash(findstr \":5000\")",
+      "Bash(netsh advfirewall *)",
+      "Bash(findstr /i \"node 5000 3000\")",
+      "Bash(findstr \"5000\")",
+      "Bash(Get-NetFirewallRule -DisplayName \"*node*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object DisplayName,Enabled,Direction,Action)",
+      "Bash(curl -s http://10.63.203.206:5000/health)",
+      "Bash(curl -s http://localhost:5000/health)"
+    ]
+  }
+}
